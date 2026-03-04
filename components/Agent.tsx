@@ -21,6 +21,15 @@ interface SavedMessage {
   content: string;
 }
 
+interface AgentProps {
+  userName: string;
+  userId?: string;
+  interviewId?: string;
+  feedbackId?: string;
+  type: "generate" | "interview";
+  questions?: string[];
+}
+
 const Agent = ({
   userName,
   userId,
@@ -132,11 +141,11 @@ const Agent = ({
           .join("\n");
       }
 
-      await vapi.start(interviewer, {
-        variableValues: {
-          questions: formattedQuestions,
-        },
-      });
+      // await vapi.start(interviewer, {
+      //   variableValues: {
+      //     questions: formattedQuestions,
+      //   },
+      // });
     }
   };
 
