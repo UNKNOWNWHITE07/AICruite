@@ -115,12 +115,42 @@ const Agent = ({
     };
 
     if (callStatus === CallStatus.FINISHED) {
-      if (type === "generate") {
-        router.push("/");
-      } else {
-        handleGenerateFeedback(messages);
+  if (type === "generate") {
+    const generateInterview = async () => {
+      try {
+        const res = await fetch("/api/interview", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            type: "technical",
+            role: "frontend developer",
+            level: "junior",
+            techstack: "react,nextjs,typescript",
+            amount: 5,
+            userid: userId,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          router.push(`/interview/${data.interviewId}`);
+        } else {
+          console.log("Interview creation failed");
+          router.push("/");
+        }
+      } catch (error) {
+        console.error("API error:", error);
       }
-    }
+    };
+
+    generateInterview();
+  } else {
+    handleGenerateFeedback(messages);
+  }
+}
   }, [messages, callStatus, feedbackId, interviewId, router, type, userId]);
 
   const handleCall = async () => {
