@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 import { vapi } from "@/lib/vapi.sdk";
-import { interviewCovers } from "@/constants";
+import { interviewCovers, interviewer } from "@/constants";  
 import { createFeedback } from "@/lib/actions/general.action";
 
 enum CallStatus {
@@ -50,9 +50,9 @@ const Agent = ({
     };
 
     const onCallEnd = () => {
-      setCallStatus(CallStatus.FINISHED);
+    console.log("CALL ENDED EVENT FIRED");
+    setCallStatus(CallStatus.FINISHED);
     };
-
     const onMessage = (message: Message) => {
       if (message.type === "transcript" && message.transcriptType === "final") {
         const newMessage = { role: message.role, content: message.transcript };
@@ -113,12 +113,12 @@ const Agent = ({
         router.push("/");
       }
     };
-
+console.log("CALL STATUS:", callStatus);
     if (callStatus === CallStatus.FINISHED) {
   if (type === "generate") {
     const generateInterview = async () => {
       try {
-        const res = await fetch("/api/interview", {
+        const res = await fetch("/api/vapi/generate", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -171,11 +171,11 @@ const Agent = ({
           .join("\n");
       }
 
-      // await vapi.start(interviewer, {
-      //   variableValues: {
-      //     questions: formattedQuestions,
-      //   },
-      // });
+      await vapi.start(interviewer, {
+        variableValues: {
+          questions: formattedQuestions,
+        },
+      });
     }
   };
 
