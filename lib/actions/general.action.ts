@@ -7,6 +7,7 @@ import { db } from "@/firebase/admin";
 import { feedbackSchema } from "@/constants";
 
 export async function createFeedback(params: CreateFeedbackParams) {
+   console.log("createFeedback called with:", params);
   const { interviewId, userId, transcript, feedbackId } = params;
 
   try {
@@ -97,9 +98,9 @@ export async function getLatestInterviews(
 
   const interviews = await db
     .collection("interviews")
-    .orderBy("createdAt", "desc")
     .where("finalized", "==", true)
     .where("userId", "!=", userId)
+    .orderBy("createdAt", "desc")
     .limit(limit)
     .get();
 
@@ -123,3 +124,4 @@ export async function getInterviewsByUserId(
     ...doc.data(),
   })) as Interview[];
 }
+
