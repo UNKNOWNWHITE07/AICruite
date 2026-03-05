@@ -43,7 +43,7 @@ const InterviewDetails = async ({ params }: RouteParams) => {
         </div>
 
         <p className="bg-dark-200 px-4 py-2 rounded-lg h-fit">
-          {interview.type}
+          page{interview.type}
         </p>
       </div>
 
