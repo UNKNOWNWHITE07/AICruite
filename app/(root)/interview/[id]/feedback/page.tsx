@@ -22,6 +22,11 @@ const Feedback = async ({ params }: RouteParams) => {
     userId: user?.id!,
   });
 
+  // FIX: properly type the categoryScores object
+  const categoryEntries = Object.entries(
+    (feedback?.categoryScores ?? {}) as Record<string, number>
+  );
+
   return (
     <section className="section-feedback">
       <div className="flex flex-row justify-center">
@@ -64,12 +69,12 @@ const Feedback = async ({ params }: RouteParams) => {
       {/* Interview Breakdown */}
       <div className="flex flex-col gap-4">
         <h2>Breakdown of the Interview:</h2>
-        {feedback?.categoryScores?.map((category, index) => (
+
+        {categoryEntries.map(([name, score], index) => (
           <div key={index}>
-            <p className="font-bold">
-              {index + 1}. {category.name} ({category.score}/100)
+            <p className="font-bold capitalize">
+              {index + 1}. {name} ({score}/100)
             </p>
-            <p>{category.comment}</p>
           </div>
         ))}
       </div>

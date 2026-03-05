@@ -5,47 +5,88 @@ import { db } from "@/firebase/admin";
 import { getRandomInterviewCover } from "@/lib/utils";
 
 export async function POST(request: Request) {
-  const { type, role, level, techstack, amount, userid } = await request.json();
+  console.log("POST /api/interview triggered");
 
   try {
-    const { text: questions } = await generateText({
-     model: groq("llama-3.3-70b-versatile"),
-      prompt: `Prepare questions for a job interview.
-        The job role is ${role}.
-        The job experience level is ${level}.
-        The tech stack used in the job is: ${techstack}.
-        The focus between behavioural and technical questions should lean towards: ${type}.
-        The amount of questions required is: ${amount}.
-        Please return only the questions, without any additional text.
-        The questions are going to be read by a voice assistant so do not use "/" or "*" or any other special characters which might break the voice assistant.
-        Return the questions formatted like this:
-        ["Question 1", "Question 2", "Question 3"]
-        
-        Thank you! <3
-    `,
+    const body = await request.json();
+
+    const { type, role, level, techstack, amount, userid } = body;
+
+    console.log("Incoming request:", body);
+
+    // Generate interview questions
+    const { text } = await generateText({
+      model: groq("llama-3.3-70b-versatile"),
+      prompt: `
+Prepare questions for a job interview.
+
+Role: ${role}
+Experience level: ${level}
+Tech stack: ${techstack}
+Focus type: ${type}
+Number of questions: ${amount}
+
+Return ONLY a JSON array like:
+["Question 1","Question 2","Question 3"]
+
+Do not include extra text.
+Avoid special characters like / * etc.
+`,
     });
 
+    console.log("AI Raw Output:", text);
+
+    let parsedQuestions;
+
+    try {
+      parsedQuestions = JSON.parse(text);
+    } catch (parseError) {
+      console.error("JSON Parse Failed:", parseError);
+
+      return Response.json(
+        { success: false, error: "AI returned invalid question format" },
+        { status: 500 }
+      );
+    }
+
     const interview = {
-      role: role,
-      type: type,
-      level: level,
+      role,
+      type,
+      level,
       techstack: techstack.split(","),
-      questions: JSON.parse(questions),
+      questions: parsedQuestions,
       userId: userid,
       finalized: true,
       coverImage: getRandomInterviewCover(),
       createdAt: new Date().toISOString(),
     };
 
-    await db.collection("interviews").add(interview);
+    console.log("Saving interview to Firestore...");
 
-    return Response.json({ success: true }, { status: 200 });
+    const docRef = await db.collection("interviews").add(interview);
+
+    console.log("Interview created:", docRef.id);
+
+    return Response.json({
+      success: true,
+      interviewId: docRef.id,
+    });
   } catch (error) {
-    console.error("Error:", error);
-    return Response.json({ success: false, error: error }, { status: 500 });
+    console.error("API ERROR:", error);
+
+    return Response.json(
+      { success: false, error: "Failed to create interview" },
+      { status: 500 }
+    );
   }
 }
 
 export async function GET() {
-  return Response.json({ success: true, data: "Thank you!" }, { status: 200 });
+  return Response.json(
+    {
+      success: true,
+      message: "Interview API working",
+    },
+    { status: 200 }
+  );
 }
