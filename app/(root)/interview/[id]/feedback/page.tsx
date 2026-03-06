@@ -10,25 +10,35 @@ import {
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/actions/auth.action";
 
-const Feedback = async ({ params }: RouteParams) => {
-  const { id } = await params;
+const Feedback = async ({
+  params,
+}: {
+  params: { id: string };
+}) => {
+  const { id } = params;
+
   const user = await getCurrentUser();
+  if (!user) redirect("/");
 
   const interview = await getInterviewById(id);
   if (!interview) redirect("/");
 
   const feedback = await getFeedbackByInterviewId({
     interviewId: id,
-    userId: user?.id!,
+    userId: user.id,
   });
 
-  // FIX: properly type the categoryScores object
-  const categoryEntries = Object.entries(
-    (feedback?.categoryScores ?? {}) as Record<string, number>
-  );
+  const categoryScores = feedback?.categoryScores ?? {};
+  const categoryFeedback = (feedback as any)?.categoryFeedback ?? {};
+
+  const categoryEntries = Object.entries(categoryScores) as [
+    string,
+    number
+  ][];
 
   return (
     <section className="section-feedback">
+      {/* Title */}
       <div className="flex flex-row justify-center">
         <h1 className="text-4xl font-semibold">
           Feedback on the Interview -{" "}
@@ -36,22 +46,21 @@ const Feedback = async ({ params }: RouteParams) => {
         </h1>
       </div>
 
-      <div className="flex flex-row justify-center ">
+      {/* Score + Date */}
+      <div className="flex flex-row justify-center mt-4">
         <div className="flex flex-row gap-5">
-          {/* Overall Impression */}
           <div className="flex flex-row gap-2 items-center">
             <Image src="/star.svg" width={22} height={22} alt="star" />
             <p>
               Overall Impression:{" "}
               <span className="text-primary-200 font-bold">
-                {feedback?.totalScore}
+                {feedback?.totalScore ?? 0}
               </span>
               /100
             </p>
           </div>
 
-          {/* Date */}
-          <div className="flex flex-row gap-2">
+          <div className="flex flex-row gap-2 items-center">
             <Image src="/calendar.svg" width={22} height={22} alt="calendar" />
             <p>
               {feedback?.createdAt
@@ -62,42 +71,60 @@ const Feedback = async ({ params }: RouteParams) => {
         </div>
       </div>
 
-      <hr />
+      <hr className="my-6" />
 
-      <p>{feedback?.finalAssessment}</p>
+      {/* Overall AI Feedback */}
+      <div className="flex flex-col gap-3">
+        <h2 className="text-xl font-semibold">Overall Assessment</h2>
 
-      {/* Interview Breakdown */}
-      <div className="flex flex-col gap-4">
-        <h2>Breakdown of the Interview:</h2>
+        <p className="text-gray-300 leading-relaxed">
+          {feedback?.finalAssessment ?? "Feedback is being generated..."}
+        </p>
+      </div>
+
+      {/* Breakdown */}
+      <div className="flex flex-col gap-6 mt-6">
+        <h2 className="text-xl font-semibold">Breakdown of the Interview</h2>
 
         {categoryEntries.map(([name, score], index) => (
-          <div key={index}>
+          <div key={index} className="flex flex-col gap-1">
             <p className="font-bold capitalize">
               {index + 1}. {name} ({score}/100)
+            </p>
+
+            <p className="text-gray-300 leading-relaxed">
+              {categoryFeedback?.[name] ?? ""}
             </p>
           </div>
         ))}
       </div>
 
-      <div className="flex flex-col gap-3">
-        <h3>Strengths</h3>
-        <ul>
-          {feedback?.strengths?.map((strength, index) => (
+      {/* Strengths */}
+      <div className="flex flex-col gap-3 mt-6">
+        <h3 className="text-lg font-semibold">Strengths</h3>
+
+        <ul className="list-disc ml-5">
+          {feedback?.strengths?.map((strength: string, index: number) => (
             <li key={index}>{strength}</li>
           ))}
         </ul>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <h3>Areas for Improvement</h3>
-        <ul>
-          {feedback?.areasForImprovement?.map((area, index) => (
-            <li key={index}>{area}</li>
-          ))}
+      {/* Improvements */}
+      <div className="flex flex-col gap-3 mt-6">
+        <h3 className="text-lg font-semibold">Areas for Improvement</h3>
+
+        <ul className="list-disc ml-5">
+          {feedback?.areasForImprovement?.map(
+            (area: string, index: number) => (
+              <li key={index}>{area}</li>
+            )
+          )}
         </ul>
       </div>
 
-      <div className="buttons">
+      {/* Buttons */}
+      <div className="buttons mt-8">
         <Button className="btn-secondary flex-1">
           <Link href="/" className="flex w-full justify-center">
             <p className="text-sm font-semibold text-primary-200 text-center">

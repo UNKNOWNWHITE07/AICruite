@@ -6,7 +6,7 @@ import { groq } from "@ai-sdk/groq";
 import { db } from "@/firebase/admin";
 
 /* -----------------------------
-   CREATE FEEDBACK
+CREATE FEEDBACK
 ------------------------------*/
 export async function createFeedback(params: CreateFeedbackParams) {
   console.log("createFeedback called with:", params);
@@ -19,17 +19,21 @@ export async function createFeedback(params: CreateFeedbackParams) {
       return { success: false };
     }
 
+    if (!transcript || transcript.length === 0) {
+      console.error("Transcript empty");
+      return { success: false };
+    }
+
     /* Remove system messages */
     const filteredTranscript = transcript.filter(
       (msg) => msg.role === "user" || msg.role === "assistant"
     );
 
     const formattedTranscript = filteredTranscript
-      .map(
-        (sentence: { role: string; content: string }) =>
-          `- ${sentence.role}: ${sentence.content}\n`
+      .map((sentence: { role: string; content: string }) =>
+        `${sentence.role}: ${sentence.content}`
       )
-      .join("");
+      .join("\n");
 
     console.log("Formatted Transcript:", formattedTranscript);
 
@@ -42,20 +46,35 @@ You are an AI interviewer evaluating a candidate.
 Transcript:
 ${formattedTranscript}
 
-Return ONLY valid JSON in this format. Do NOT wrap the JSON in markdown or code blocks.
+Score rules:
+
+- Scores range from 0 to 100
+- 50 = average candidate
+- 70+ = good candidate
+- 85+ = excellent candidate
+- below 40 = poor performance
+
+Return ONLY valid JSON.
 
 {
-  "totalScore": number,
-  "categoryScores": {
-    "communication": number,
-    "technical": number,
-    "problemSolving": number,
-    "cultureFit": number,
-    "confidence": number
-  },
-  "strengths": string[],
-  "areasForImprovement": string[],
-  "finalAssessment": string
+"totalScore": number,
+"categoryScores": {
+"communication": number,
+"technical": number,
+"problemSolving": number,
+"cultureFit": number,
+"confidence": number
+},
+"categoryFeedback": {
+"communication": string,
+"technical": string,
+"problemSolving": string,
+"cultureFit": string,
+"confidence": string
+},
+"strengths": string[],
+"areasForImprovement": string[],
+"finalAssessment": string
 }
 `,
     });
@@ -63,7 +82,6 @@ Return ONLY valid JSON in this format. Do NOT wrap the JSON in markdown or code 
     let parsed;
 
     try {
-      // Clean AI response if wrapped in markdown code blocks
       const cleanedText = text
         .replace(/```json/g, "")
         .replace(/```/g, "")
@@ -81,6 +99,7 @@ Return ONLY valid JSON in this format. Do NOT wrap the JSON in markdown or code 
       userId,
       totalScore: parsed?.totalScore ?? 0,
       categoryScores: parsed?.categoryScores ?? {},
+      categoryFeedback: parsed?.categoryFeedback ?? {},
       strengths: parsed?.strengths ?? [],
       areasForImprovement: parsed?.areasForImprovement ?? [],
       finalAssessment: parsed?.finalAssessment ?? "",
@@ -100,6 +119,7 @@ Return ONLY valid JSON in this format. Do NOT wrap the JSON in markdown or code 
     await feedbackRef.set(feedback);
 
     return { success: true, feedbackId: feedbackRef.id };
+
   } catch (error) {
     console.error("Error saving feedback:", error);
     return { success: false };
@@ -107,80 +127,103 @@ Return ONLY valid JSON in this format. Do NOT wrap the JSON in markdown or code 
 }
 
 /* -----------------------------
-   GET INTERVIEW BY ID
+GET INTERVIEW BY ID
 ------------------------------*/
 export async function getInterviewById(
   id: string
 ): Promise<Interview | null> {
-  const interview = await db.collection("interviews").doc(id).get();
+  try {
+    const interview = await db.collection("interviews").doc(id).get();
 
-  if (!interview.exists) return null;
+    if (!interview.exists) return null;
 
-  return {
-    id: interview.id,
-    ...interview.data(),
-  } as Interview;
+    return {
+      id: interview.id,
+      ...(interview.data() as Omit<Interview, "id">),
+    };
+  } catch (error) {
+    console.error("Error fetching interview:", error);
+    return null;
+  }
 }
 
 /* -----------------------------
-   GET FEEDBACK BY INTERVIEW
+GET FEEDBACK BY INTERVIEW
 ------------------------------*/
 export async function getFeedbackByInterviewId(
   params: GetFeedbackByInterviewIdParams
 ): Promise<Feedback | null> {
-  const { interviewId, userId } = params;
+  try {
+    const { interviewId, userId } = params;
 
-  const querySnapshot = await db
-    .collection("feedback")
-    .where("interviewId", "==", interviewId)
-    .where("userId", "==", userId)
-    .limit(1)
-    .get();
+    const querySnapshot = await db
+      .collection("feedback")
+      .where("interviewId", "==", interviewId)
+      .where("userId", "==", userId)
+      .limit(1)
+      .get();
 
-  if (querySnapshot.empty) return null;
+    if (querySnapshot.empty) return null;
 
-  const feedbackDoc = querySnapshot.docs[0];
+    const feedbackDoc = querySnapshot.docs[0];
 
-  return { id: feedbackDoc.id, ...feedbackDoc.data() } as Feedback;
+    return {
+      id: feedbackDoc.id,
+      ...(feedbackDoc.data() as Omit<Feedback, "id">),
+    };
+  } catch (error) {
+    console.error("Error fetching feedback:", error);
+    return null;
+  }
 }
 
 /* -----------------------------
-   GET LATEST INTERVIEWS
+GET LATEST INTERVIEWS
 ------------------------------*/
 export async function getLatestInterviews(
   params: GetLatestInterviewsParams
 ): Promise<Interview[] | null> {
-  const { userId, limit = 20 } = params;
+  try {
+    const { userId, limit = 20 } = params;
 
-  const interviews = await db
-    .collection("interviews")
-    .where("userId", "!=", userId)
-    .where("finalized", "==", true)
-    .orderBy("userId")
-    .orderBy("createdAt", "desc")
-    .limit(limit)
-    .get();
+    const interviews = await db
+      .collection("interviews")
+      .where("userId", "!=", userId)
+      .where("finalized", "==", true)
+      .orderBy("userId")
+      .orderBy("createdAt", "desc")
+      .limit(limit)
+      .get();
 
-  return interviews.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as Interview[];
+    return interviews.docs.map((doc) => ({
+      id: doc.id,
+      ...(doc.data() as Omit<Interview, "id">),
+    }));
+  } catch (error) {
+    console.error("Error fetching latest interviews:", error);
+    return null;
+  }
 }
 
 /* -----------------------------
-   GET USER INTERVIEWS
+GET USER INTERVIEWS
 ------------------------------*/
 export async function getInterviewsByUserId(
   userId: string
 ): Promise<Interview[] | null> {
-  const interviews = await db
-    .collection("interviews")
-    .where("userId", "==", userId)
-    .orderBy("createdAt", "desc")
-    .get();
+  try {
+    const interviews = await db
+      .collection("interviews")
+      .where("userId", "==", userId)
+      .orderBy("createdAt", "desc")
+      .get();
 
-  return interviews.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as Interview[];
+    return interviews.docs.map((doc) => ({
+      id: doc.id,
+      ...(doc.data() as Omit<Interview, "id">),
+    }));
+  } catch (error) {
+    console.error("Error fetching user interviews:", error);
+    return null;
+  }
 }

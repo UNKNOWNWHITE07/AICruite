@@ -10,27 +10,54 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    const { type, role, level, techstack, amount, userid } = body;
-
     console.log("Incoming request:", body);
 
-    // Generate interview questions
+    const { type, role, level, techstack, amount, userid } = body;
+
+    /* Validate required data */
+    if (!role || !level || !type || !amount || !userid) {
+      console.error("Missing required interview parameters");
+
+      return Response.json(
+        { success: false, error: "Missing interview parameters" },
+        { status: 400 }
+      );
+    }
+
+    /* Safely parse tech stack */
+    const stack =
+      typeof techstack === "string"
+        ? techstack.split(",").map((t: string) => t.trim())
+        : [];
+
+    /* Generate interview questions */
     const { text } = await generateText({
       model: groq("llama-3.3-70b-versatile"),
       prompt: `
-Prepare questions for a job interview.
+You are an expert technical interviewer.
+
+Your task is to generate interview questions based ONLY on the information provided.
 
 Role: ${role}
-Experience level: ${level}
-Tech stack: ${techstack}
-Focus type: ${type}
+Experience Level: ${level}
+Focus Type: ${type}
+Tech Stack: ${stack.join(", ")}
+
+Rules:
+
+* Questions MUST relate to the provided tech stack.
+* If the focus type is "technical", generate technical questions about the tech stack.
+* If the focus type is "behavioral", generate behavioral interview questions (no technical topics).
+* DO NOT ask questions about technologies not listed in the tech stack.
+* Do NOT include React, Next.js, or TypeScript unless they are in the tech stack.
+* Keep questions clear and realistic for a real job interview.
+
 Number of questions: ${amount}
 
-Return ONLY a JSON array like:
+Return ONLY a valid JSON array like this:
 ["Question 1","Question 2","Question 3"]
 
-Do not include extra text.
-Avoid special characters like / * etc.
+Do not include explanations or extra text.
 `,
     });
 
@@ -39,7 +66,12 @@ Avoid special characters like / * etc.
     let parsedQuestions;
 
     try {
-      parsedQuestions = JSON.parse(text);
+      const cleanedText = text
+        .replace(/```json/g, "")
+        .replace(/```/g, "")
+        .trim();
+
+      parsedQuestions = JSON.parse(cleanedText);
     } catch (parseError) {
       console.error("JSON Parse Failed:", parseError);
 
@@ -53,7 +85,7 @@ Avoid special characters like / * etc.
       role,
       type,
       level,
-      techstack: techstack.split(","),
+      techstack: stack,
       questions: parsedQuestions,
       userId: userid,
       finalized: true,
@@ -71,6 +103,7 @@ Avoid special characters like / * etc.
       success: true,
       interviewId: docRef.id,
     });
+
   } catch (error) {
     console.error("API ERROR:", error);
 

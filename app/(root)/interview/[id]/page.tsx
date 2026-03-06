@@ -11,17 +11,22 @@ import {
 import { getCurrentUser } from "@/lib/actions/auth.action";
 import DisplayTechIcons from "@/components/DisplayTechIcons";
 
-const InterviewDetails = async ({ params }: RouteParams) => {
-  const { id } = await params;
+const InterviewDetails = async ({
+  params,
+}: {
+  params: { id: string };
+}) => {
+  const { id } = params;
 
   const user = await getCurrentUser();
+  if (!user) redirect("/");
 
   const interview = await getInterviewById(id);
   if (!interview) redirect("/");
 
   const feedback = await getFeedbackByInterviewId({
     interviewId: id,
-    userId: user?.id!,
+    userId: user.id,
   });
 
   return (
@@ -36,6 +41,7 @@ const InterviewDetails = async ({ params }: RouteParams) => {
               height={40}
               className="rounded-full object-cover size-[40px]"
             />
+
             <h3 className="capitalize">{interview.role} Interview</h3>
           </div>
 
@@ -43,13 +49,13 @@ const InterviewDetails = async ({ params }: RouteParams) => {
         </div>
 
         <p className="bg-dark-200 px-4 py-2 rounded-lg h-fit">
-          page{interview.type}
+          {interview.type} Interview
         </p>
       </div>
 
       <Agent
-        userName={user?.name!}
-        userId={user?.id}
+        userName={user.name}
+        userId={user.id}
         interviewId={id}
         type="interview"
         questions={interview.questions}

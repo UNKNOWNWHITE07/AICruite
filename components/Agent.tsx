@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 import { vapi } from "@/lib/vapi.sdk";
-import { interviewer } from "@/constants";
 import { createFeedback } from "@/lib/actions/general.action";
 
 enum CallStatus {
@@ -45,24 +44,35 @@ const Agent = ({
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [lastMessage, setLastMessage] = useState("");
 
-  // prevents duplicate feedback generation
-  const feedbackGenerated = useRef(false);
+  const assistantData = useRef<any>(null);
+  const actionTriggered = useRef(false);
 
   /* -------------------------
      VAPI EVENTS
-  --------------------------*/
+  -------------------------- */
+
   useEffect(() => {
     const onCallStart = () => {
       console.log("CALL STARTED");
       setCallStatus(CallStatus.ACTIVE);
     };
 
-    const onCallEnd = () => {
-      console.log("CALL ENDED EVENT FIRED");
+    const onCallEnd = (data: any) => {
+      console.log("CALL ENDED");
+      console.log("FULL CALL DATA:", data);
+
+      assistantData.current =
+        data?.variable_values ||
+        data?.variables ||
+        data?.call?.variable_values ||
+        {};
+
+      console.log("ASSISTANT VARIABLES:", assistantData.current);
+
       setCallStatus(CallStatus.FINISHED);
     };
 
-    const onMessage = (message: Message) => {
+    const onMessage = (message: any) => {
       if (message.type === "transcript" && message.transcriptType === "final") {
         const newMessage = {
           role: message.role,
@@ -73,38 +83,34 @@ const Agent = ({
       }
     };
 
-    const onSpeechStart = () => {
-      setIsSpeaking(true);
-    };
-
-    const onSpeechEnd = () => {
-      setIsSpeaking(false);
-    };
+    const onSpeechStart = () => setIsSpeaking(true);
+    const onSpeechEnd = () => setIsSpeaking(false);
 
     const onError = (error: Error) => {
       console.log("VAPI ERROR:", error);
     };
 
-    vapi.on("call-start", onCallStart);
-    vapi.on("call-end", onCallEnd);
-    vapi.on("message", onMessage);
-    vapi.on("speech-start", onSpeechStart);
-    vapi.on("speech-end", onSpeechEnd);
-    vapi.on("error", onError);
+    vapi.on("call-start", onCallStart as any);
+    vapi.on("call-end", onCallEnd as any);
+    vapi.on("message", onMessage as any);
+    vapi.on("speech-start", onSpeechStart as any);
+    vapi.on("speech-end", onSpeechEnd as any);
+    vapi.on("error", onError as any);
 
     return () => {
-      vapi.off("call-start", onCallStart);
-      vapi.off("call-end", onCallEnd);
-      vapi.off("message", onMessage);
-      vapi.off("speech-start", onSpeechStart);
-      vapi.off("speech-end", onSpeechEnd);
-      vapi.off("error", onError);
+      vapi.off("call-start", onCallStart as any);
+      vapi.off("call-end", onCallEnd as any);
+      vapi.off("message", onMessage as any);
+      vapi.off("speech-start", onSpeechStart as any);
+      vapi.off("speech-end", onSpeechEnd as any);
+      vapi.off("error", onError as any);
     };
   }, []);
 
   /* -------------------------
      LAST MESSAGE DISPLAY
-  --------------------------*/
+  -------------------------- */
+
   useEffect(() => {
     if (messages.length > 0) {
       setLastMessage(messages[messages.length - 1].content);
@@ -112,23 +118,26 @@ const Agent = ({
   }, [messages]);
 
   /* -------------------------
-     CALL FINISHED LOGIC
-  --------------------------*/
+     AFTER CALL FINISHES
+  -------------------------- */
+
   useEffect(() => {
-    console.log("CALL STATUS:", callStatus);
-
     if (callStatus !== CallStatus.FINISHED) return;
+    if (actionTriggered.current) return;
 
-    if (feedbackGenerated.current) return;
-    feedbackGenerated.current = true;
+    actionTriggered.current = true;
 
     /* -------------------------
        GENERATE INTERVIEW
-    --------------------------*/
+    -------------------------- */
+
     if (type === "generate") {
       const generateInterview = async () => {
         try {
-          console.log("Generating interview...");
+          const { role, techstack, type: interviewType, level, amount } =
+            assistantData.current || {};
+
+          console.log("VOICE DATA:", assistantData.current);
 
           const res = await fetch("/api/vapi/generate", {
             method: "POST",
@@ -136,18 +145,16 @@ const Agent = ({
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              type: "technical",
-              role: "frontend developer",
-              level: "junior",
-              techstack: "react,nextjs,typescript",
-              amount: 5,
+              role,
+              techstack,
+              type: interviewType,
+              level,
+              amount,
               userid: userId,
             }),
           });
 
           const data = await res.json();
-
-          console.log("Interview API response:", data);
 
           if (data.success) {
             router.push(`/interview/${data.interviewId}`);
@@ -164,21 +171,13 @@ const Agent = ({
 
     /* -------------------------
        GENERATE FEEDBACK
-    --------------------------*/
+    -------------------------- */
+
     else {
       const generateFeedback = async () => {
         try {
-          if (!interviewId || !userId) {
-            console.log("Missing interviewId or userId");
-            return;
-          }
-
-          if (messages.length === 0) {
-            console.log("Transcript empty, skipping feedback");
-            return;
-          }
-
-          console.log("Generating feedback with transcript:", messages);
+          if (!interviewId || !userId) return;
+          if (messages.length === 0) return;
 
           const { success, feedbackId: id } = await createFeedback({
             interviewId,
@@ -190,7 +189,6 @@ const Agent = ({
           if (success && id) {
             router.push(`/interview/${interviewId}/feedback`);
           } else {
-            console.log("Feedback save failed");
             router.push("/");
           }
         } catch (error) {
@@ -204,14 +202,27 @@ const Agent = ({
 
   /* -------------------------
      START CALL
-  --------------------------*/
+  -------------------------- */
+
   const handleCall = async () => {
     setCallStatus(CallStatus.CONNECTING);
 
     if (type === "generate") {
-      await vapi.start(process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID!, {
+      const safeUserName = userName || "there";
+
+      const assistantId =
+        process.env.NEXT_PUBLIC_VAPI_SETUP_ASSISTANT_ID as string;
+
+      if (!assistantId) {
+        console.error("Setup Assistant ID missing");
+        return;
+      }
+
+      console.log("SETUP ASSISTANT:", assistantId);
+
+      await vapi.start(assistantId, {
         variableValues: {
-          username: userName,
+          username: safeUserName,
           userid: userId,
         },
       });
@@ -222,7 +233,17 @@ const Agent = ({
         formattedQuestions = questions.map((q) => `- ${q}`).join("\n");
       }
 
-      await vapi.start(interviewer, {
+      const interviewAssistantId =
+        process.env.NEXT_PUBLIC_VAPI_INTERVIEW_ASSISTANT_ID as string;
+
+      if (!interviewAssistantId) {
+        console.error("Interview Assistant ID missing");
+        return;
+      }
+
+      console.log("INTERVIEW ASSISTANT:", interviewAssistantId);
+
+      await vapi.start(interviewAssistantId, {
         variableValues: {
           questions: formattedQuestions,
         },
@@ -247,8 +268,10 @@ const Agent = ({
               height={54}
               className="object-cover"
             />
+
             {isSpeaking && <span className="animate-speak" />}
           </div>
+
           <h3>AI Interviewer</h3>
         </div>
 
@@ -261,6 +284,7 @@ const Agent = ({
               height={539}
               className="rounded-full object-cover size-[120px]"
             />
+
             <h3>{userName}</h3>
           </div>
         </div>
@@ -291,6 +315,7 @@ const Agent = ({
                 callStatus !== "CONNECTING" && "hidden"
               )}
             />
+
             <span className="relative">
               {callStatus === "INACTIVE" || callStatus === "FINISHED"
                 ? "Call"

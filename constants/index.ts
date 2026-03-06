@@ -1,4 +1,4 @@
-import { CreateAssistantDTO } from "@vapi-ai/web/dist/api";
+
 import { z } from "zod";
 
 export const mappings = {
@@ -97,7 +97,7 @@ export const mappings = {
   "aws amplify": "amplify",
 };
 
-export const interviewer: CreateAssistantDTO = {
+export const interviewer = {
   name: "Interviewer",
   firstMessage:
     "Hello! Thank you for taking the time to speak with me today. I'm excited to learn more about you and your experience.",
@@ -156,38 +156,31 @@ End the conversation on a polite and positive note.
 };
 
 export const feedbackSchema = z.object({
-  totalScore: z.number(),
-  categoryScores: z.tuple([
-    z.object({
-      name: z.literal("Communication Skills"),
-      score: z.number(),
-      comment: z.string(),
-    }),
-    z.object({
-      name: z.literal("Technical Knowledge"),
-      score: z.number(),
-      comment: z.string(),
-    }),
-    z.object({
-      name: z.literal("Problem Solving"),
-      score: z.number(),
-      comment: z.string(),
-    }),
-    z.object({
-      name: z.literal("Cultural Fit"),
-      score: z.number(),
-      comment: z.string(),
-    }),
-    z.object({
-      name: z.literal("Confidence and Clarity"),
-      score: z.number(),
-      comment: z.string(),
-    }),
-  ]),
-  strengths: z.array(z.string()),
-  areasForImprovement: z.array(z.string()),
-  finalAssessment: z.string(),
+totalScore: z.number(),
+
+categoryScores: z.object({
+communication: z.number(),
+technical: z.number(),
+problemSolving: z.number(),
+cultureFit: z.number(),
+confidence: z.number(),
+}),
+
+categoryFeedback: z.object({
+communication: z.string(),
+technical: z.string(),
+problemSolving: z.string(),
+cultureFit: z.string(),
+confidence: z.string(),
+}),
+
+strengths: z.array(z.string()),
+
+areasForImprovement: z.array(z.string()),
+
+finalAssessment: z.string(),
 });
+
 
 export const interviewCovers = [
   "/covers/adobe.png",
