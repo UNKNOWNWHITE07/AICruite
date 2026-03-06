@@ -108,7 +108,7 @@ Do not include explanations or extra text.
     console.error("API ERROR:", error);
 
     return Response.json(
-      { success: false, error: "Failed to create interview" },
+      { success: false, error: "Failed to create interview, sorry" },
       { status: 500 }
     );
   }
