@@ -156,6 +156,8 @@ export async function getFeedbackByInterviewId(
   try {
     const { interviewId, userId } = params;
 
+    if (!interviewId || !userId) return null;
+
     const querySnapshot = await db
       .collection("feedback")
       .where("interviewId", "==", interviewId)
@@ -184,7 +186,10 @@ export async function getLatestInterviews(
   params: GetLatestInterviewsParams
 ): Promise<Interview[] | null> {
   try {
-    const { userId, limit = 20 } = params;
+    const { userId, limit = 20 } = params || {};
+
+    // Prevent Firestore error if userId is undefined
+    if (!userId) return [];
 
     const interviews = await db
       .collection("interviews")
@@ -212,6 +217,8 @@ export async function getInterviewsByUserId(
   userId: string
 ): Promise<Interview[] | null> {
   try {
+    if (!userId) return [];
+
     const interviews = await db
       .collection("interviews")
       .where("userId", "==", userId)

@@ -60,7 +60,8 @@ const Agent = ({
     const onCallEnd = (data: any) => {
       console.log("CALL ENDED");
       console.log("FULL CALL DATA:", data);
-
+      console.log("FULL CALL DATA:", data);
+      console.log("ASSISTANT VARIABLES:", assistantData.current);
       assistantData.current =
         data?.variable_values ||
         data?.variables ||
